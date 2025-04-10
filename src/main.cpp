@@ -1,28 +1,31 @@
 #include <Arduino.h>
 #include <FastLED.h>
 #include <stdint.h>
+#include <Encoder.h>
 
-#define KNOB_CLK 2
-#define KNOB_DT 3
-#define KNOB_SW 4
+#define KNOB_CLK 12
+#define KNOB_DT 11
+#define KNOB_SW 10
 
-#define GX A1
-#define GY A2
-#define GZ A3
+#define GX A0
+#define GY A1
+#define GZ A2
 
-#define LED_PIN_A 5
-#define LED_PIN_B 6
-#define LED_PIN_C 10
-#define LED_PIN_D 11
+#define LED_PIN_A 2
+#define LED_PIN_B 3
+#define LED_PIN_C 4
+#define LED_PIN_D 5
 #define NUM_LEDS 144
 #define LED_TYPE WS2812
 #define COLOR_ORDER GRB
 
-#define MAX_LED_MODE 3
+#define MAX_LED_MODE 4
+#define MAX_BGRIGHTNESS 50
 
 CRGB leds_x[NUM_LEDS];
 CRGB leds_y[NUM_LEDS];
 
+bool is_setting_brightness = false;
 bool is_paused = false;
 bool is_on = false;
 
@@ -31,7 +34,13 @@ byte hue = 0;
 byte led_mode = 0;
 byte led_pos = 0;
 
+Encoder my_enc(KNOB_CLK, KNOB_DT);
+
+int32_t enc_mode_pos = 0;
+int32_t enc_brightness_pos = 0;
+
 unsigned long last_button_press = 0;
+unsigned long last_print = 0;
 
 int cur_gx;
 int last_gx;
@@ -43,27 +52,24 @@ unsigned int gd = 0;
 unsigned long last_g = 0;
 unsigned int gd_acc = 0;
 
-unsigned long last_dt_up = 0;
-unsigned long last_clk_up = 0;
-
-void wait_for_serial_connection()
-{
-  uint32_t timeout_end = millis() + 2000;
-  Serial.begin(9600);
-  while (!Serial && timeout_end > millis())
-  {
-  } // wait until the connection to the PC is established
-}
-
 void setup_knob()
 {
-  // Set encoder pins as inputs
-  pinMode(KNOB_CLK, INPUT_PULLUP);
-  pinMode(KNOB_DT, INPUT_PULLUP);
   pinMode(KNOB_SW, INPUT_PULLUP);
+}
 
-  // Setup Serial Monitor
-  Serial.begin(9600);
+void led_standby()
+{
+  FastLED.setBrightness(10);
+
+  leds_x[0] = CHSV(0, 255, 255);
+  leds_y[0] = CHSV(0, 255, 255);
+
+  for (byte i = 1; i < NUM_LEDS; i++)
+  {
+    leds_x[i] = CRGB::Black;
+    leds_y[i] = CRGB::Black;
+  }
+  FastLED.show();
 }
 
 void setup_lights()
@@ -74,11 +80,8 @@ void setup_lights()
   FastLED.addLeds<LED_TYPE, LED_PIN_D, COLOR_ORDER>(leds_y, NUM_LEDS).setCorrection(TypicalLEDStrip);
 
   delay(100);
-  FastLED.setBrightness(brightness);
 
-  leds_x[0] = CHSV(0, 255, 255);
-  leds_y[0] = CHSV(0, 255, 255);
-  FastLED.show();
+  led_standby();
 }
 
 void setup_acc()
@@ -91,63 +94,73 @@ void setup_acc()
   cur_gz = last_gz;
 }
 
-void clk()
+void sw()
 {
-  int clk_v = digitalRead(KNOB_CLK);
-  if (clk_v == 1)
-  {
-    last_clk_up = millis();
-    if (last_clk_up - last_dt_up < 60)
-    {
-      Serial.println("CCW / decrement");
-      if (!is_paused && brightness >= 10)
-      {
-        brightness -= 5;
-        FastLED.setBrightness(brightness);
-        Serial.println(brightness);
-      }
-      else if (is_paused && led_mode > 0)
-      {
-        led_mode--;
-      }
-      is_paused = false;
-    }
-  }
-}
+  // Read the button state
+  int btn_state = digitalRead(KNOB_SW);
 
-void dt()
-{
-  int dt_v = digitalRead(KNOB_DT);
-  if (dt_v == 1)
+  // If we detect LOW signal, button is pressed
+  if (btn_state == LOW)
   {
-    last_dt_up = millis();
-    if (last_dt_up - last_clk_up < 60)
+    // if 50ms have passed since last LOW pulse, it means that the
+    // button has been pressed, released and pressed again
+    if (millis() - last_button_press > 50)
     {
-      Serial.println("CW / increment");
-      if (!is_paused && brightness <= 95)
+      Serial.println("Button pressed!");
+      if (!is_on)
       {
-        brightness += 5;
-        FastLED.setBrightness(brightness);
-        Serial.println(brightness);
+        is_on = true;
+        is_paused = false;
+        is_setting_brightness = false;
       }
-      else if (is_paused && led_mode < MAX_LED_MODE)
+      else if (is_paused || !is_setting_brightness)
       {
-        led_mode++;
+        is_on = false;
+        is_paused = false;
       }
-      is_paused = false;
+      else if (!is_paused)
+      {
+        is_paused = true;
+        is_setting_brightness = false;
+      }
+
+      Serial.print("It is ");
+      if (is_paused)
+      {
+        Serial.print("paused ");
+      }
+      else
+      {
+        Serial.print("resumed ");
+      }
+
+      if (is_on)
+      {
+        Serial.println("and on");
+      }
+      else
+      {
+        Serial.println("and off");
+        led_standby();
+      }
     }
+
+    // Remember last button press event
+    last_button_press = millis();
   }
 }
 
 void setup()
 {
-  wait_for_serial_connection(); // Optional, but seems to help Teensy out a lot.
+  delay(10);
+  // Setup Serial Monitor
+  Serial.begin(38400);
+
   setup_lights();
   setup_knob();
   setup_acc();
 
-  attachInterrupt(digitalPinToInterrupt(KNOB_CLK), clk, RISING);
-  attachInterrupt(digitalPinToInterrupt(KNOB_DT), dt, RISING);
+  attachInterrupt(digitalPinToInterrupt(KNOB_SW), sw, CHANGE);
 }
 
 void inc_pos()
@@ -161,9 +174,9 @@ void inc_pos()
 
 void led_rainbow()
 {
-  int led_pos_y = NUM_LEDS - led_pos - 1;
+  byte led_pos_rev = NUM_LEDS - led_pos - 1;
   leds_x[led_pos] = CHSV(hue, 255, 255);
-  leds_y[led_pos_y] = CHSV(hue, 255, 255);
+  leds_y[led_pos_rev] = CHSV(hue, 255, 255);
 
   hue++;
   if (hue > 255)
@@ -174,21 +187,41 @@ void led_rainbow()
   inc_pos();
 }
 
+void led_double_rainbow()
+{
+  byte led_pos_rev = NUM_LEDS - led_pos - 1;
+  byte hue_rev = hue + 128;
+
+  leds_x[led_pos] = CHSV(hue, 255, 255);
+  leds_x[led_pos_rev] = CHSV(hue_rev, 255, 255);
+
+  leds_y[led_pos_rev] = CHSV(hue, 255, 255);
+  leds_y[led_pos] = CHSV(hue_rev, 255, 255);
+
+  hue++;
+  if (hue > 255)
+  {
+    hue = 0;
+  }
+
+  inc_pos();
+  inc_pos();
+}
+
 void led_sparkle()
 {
-  int pos = 0;
-  pos = rand() % NUM_LEDS;
-  leds_x[pos] = CRGB::White;
-  pos = rand() % NUM_LEDS;
-  leds_y[pos] = CRGB::White;
-
-  for (int i = 0; i < 2; i++)
+  byte pos = 0;
+  if (rand() % 100 > 90)
   {
     pos = rand() % NUM_LEDS;
-    leds_x[pos] = CRGB::Black;
+    leds_x[pos] = CRGB::White;
     pos = rand() % NUM_LEDS;
-    leds_y[pos] = CRGB::Black;
+    leds_y[pos] = CRGB::White;
   }
+  pos = rand() % NUM_LEDS;
+  leds_x[pos] = CRGB::Black;
+  pos = rand() % NUM_LEDS;
+  leds_y[pos] = CRGB::Black;
 }
 
 void led_sparkle_g()
@@ -243,30 +276,21 @@ void led_painter_g()
   inc_pos();
 }
 
-void led_standby()
-{
-  leds_x[0] = CHSV(0, 255, 255);
-  leds_y[0] = CHSV(0, 255, 255);
-
-  for (byte i = 1; i < NUM_LEDS; i++)
-  {
-    leds_x[i] = CRGB::Black;
-    leds_y[i] = CRGB::Black;
-  }
-  FastLED.show();
-}
-
 void loop_leds()
 {
   if (led_mode == 0)
   {
-    led_rainbow();
+    led_double_rainbow();
   }
   else if (led_mode == 1)
   {
     led_sparkle();
   }
   else if (led_mode == 2)
+  {
+    led_rainbow();
+  }
+  else if (led_mode == 3)
   {
     led_sparkle_g();
   }
@@ -314,64 +338,73 @@ void read_g()
 
 void read_knob()
 {
-  // Read the button state
-  int btn_state = digitalRead(KNOB_SW);
+  int32_t new_pos = my_enc.read();
 
-  // If we detect LOW signal, button is pressed
-  if (btn_state == LOW)
+  if (is_paused && !is_setting_brightness && new_pos != enc_mode_pos)
   {
-    // if 50ms have passed since last LOW pulse, it means that the
-    // button has been pressed, released and pressed again
-    if (millis() - last_button_press > 50)
+    is_setting_brightness = true;
+    my_enc.write(enc_brightness_pos);
+    new_pos = enc_brightness_pos;
+  }
+
+  if (new_pos < 0)
+  {
+    new_pos = 0;
+  }
+
+  if (is_setting_brightness)
+  {
+    if (new_pos > MAX_BGRIGHTNESS * 10)
     {
-      Serial.println("Button pressed!");
-      if (!is_on)
-      {
-        is_on = true;
-        is_paused = false;
-      }
-      else if (is_paused)
-      {
-        is_on = false;
-      }
-      else
-      {
-        is_paused = true;
-      }
-
-      Serial.print("It is ");
-      if (is_paused)
-      {
-        Serial.print("paused ");
-      }
-      else
-      {
-        Serial.print("resumed ");
-      }
-
-      if (is_on)
-      {
-        Serial.println("and on");
-      }
-      else
-      {
-        Serial.println("and off");
-        led_standby();
-      }
+      new_pos = MAX_BGRIGHTNESS * 10;
     }
+  }
+  else
+  {
+    if (new_pos > MAX_LED_MODE * 10)
+    {
+      new_pos = MAX_LED_MODE * 10;
+    }
+  }
 
-    // Remember last button press event
-    last_button_press = millis();
+  my_enc.write(new_pos);
+
+  if (is_setting_brightness)
+  {
+    if (round(new_pos / 10) != brightness)
+    {
+      brightness = round(new_pos / 10);
+      FastLED.setBrightness(brightness);
+      enc_brightness_pos = new_pos;
+    }
+  }
+  else
+  {
+    led_mode = round(new_pos / 10);
+    enc_mode_pos = new_pos;
+  }
+
+  if (millis() - last_print > 1000)
+  {
+    Serial.print("enc_mode_pos: ");
+    Serial.print(enc_mode_pos);
+    Serial.print(" enc_brightness_pos: ");
+    Serial.println(enc_brightness_pos);
+
+    last_print = millis();
   }
 }
 
 void loop()
 {
-  read_knob();
+  if (is_on)
+  {
+    read_knob();
+  }
   read_g();
   if (is_on && !is_paused)
   {
     loop_leds();
   }
-  delay(1);
+  delay(5);
 }
