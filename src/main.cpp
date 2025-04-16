@@ -1,29 +1,38 @@
+#include <WS2812Serial.h>
+#define USE_WS2812SERIAL
 #include <Arduino.h>
 #include <FastLED.h>
 #include <stdint.h>
+// #define ENCODER_OPTIMIZE_INTERRUPTS
 #include <Encoder.h>
 
-#define KNOB_CLK 12
-#define KNOB_DT 11
-#define KNOB_SW 10
+#define KNOB_CLK 3
+#define KNOB_DT 2
+#define KNOB_SW 1
+#define KNOB_PLUS 0
 
 #define GX A0
 #define GY A1
 #define GZ A2
 
-#define LED_PIN_A 2
-#define LED_PIN_B 3
-#define LED_PIN_C 4
-#define LED_PIN_D 5
+#define LED_PIN_A 8
+#define LED_PIN_B 14
+#define LED_PIN_C 17
+#define LED_PIN_D 20
 
 #define NUM_LEDS 144
 #define NUM_STRIPS 4
 
-#define LED_TYPE WS2812
 #define COLOR_ORDER GRB
 
+#define LED_MODE_DOUBLE_RAINBOW 0
+#define LED_MODE_SPARKLE 1
+#define LED_MODE_RAINBOW 2
+#define LED_MODE_SPARKLE_G 3
+#define LED_MODE_PAINTER_G 4
 #define MAX_LED_MODE 4
-#define MIN_BRIGHTNESS 1
+
+#define MIN_BRIGHTNESS 5
 #define MAX_BGRIGHTNESS 50
 
 #define MODE_OFF 0
@@ -32,14 +41,14 @@
 
 CRGB leds[NUM_STRIPS][NUM_LEDS];
 
-int32_t mode = 0;
+int32_t mode = MODE_LED;
 
 int32_t brightness = 10;
 byte hue = 0;
-int32_t led_mode = 0;
+int32_t led_mode = LED_MODE_DOUBLE_RAINBOW;
 byte led_pos = 0;
 
-Encoder my_enc(KNOB_CLK, KNOB_DT);
+Encoder my_enc(KNOB_DT, KNOB_CLK);
 
 int32_t enc_led_mode_pos = 0;
 int32_t enc_brightness_pos = 0;
@@ -59,11 +68,6 @@ unsigned int gd = 0;
 unsigned long last_g = 0;
 unsigned int gd_acc = 0;
 
-void setup_knob()
-{
-    pinMode(KNOB_SW, INPUT_PULLUP);
-}
-
 void led_standby()
 {
     FastLED.setBrightness(MIN_BRIGHTNESS);
@@ -82,10 +86,10 @@ void led_standby()
 
 void setup_lights()
 {
-    FastLED.addLeds<LED_TYPE, LED_PIN_A, COLOR_ORDER>(leds[0], NUM_LEDS).setCorrection(TypicalLEDStrip);
-    FastLED.addLeds<LED_TYPE, LED_PIN_B, COLOR_ORDER>(leds[1], NUM_LEDS).setCorrection(TypicalLEDStrip);
-    FastLED.addLeds<LED_TYPE, LED_PIN_C, COLOR_ORDER>(leds[2], NUM_LEDS).setCorrection(TypicalLEDStrip);
-    FastLED.addLeds<LED_TYPE, LED_PIN_D, COLOR_ORDER>(leds[3], NUM_LEDS).setCorrection(TypicalLEDStrip);
+    FastLED.addLeds<WS2812SERIAL, LED_PIN_A, COLOR_ORDER>(leds[0], NUM_LEDS).setCorrection(TypicalLEDStrip);
+    FastLED.addLeds<WS2812SERIAL, LED_PIN_B, COLOR_ORDER>(leds[1], NUM_LEDS).setCorrection(TypicalLEDStrip);
+    FastLED.addLeds<WS2812SERIAL, LED_PIN_C, COLOR_ORDER>(leds[2], NUM_LEDS).setCorrection(TypicalLEDStrip);
+    FastLED.addLeds<WS2812SERIAL, LED_PIN_D, COLOR_ORDER>(leds[3], NUM_LEDS).setCorrection(TypicalLEDStrip);
 
     delay(100);
 
@@ -116,78 +120,83 @@ void set_brightness_mode()
 
 void sw()
 {
-    // Read the button state
-    int btn_state = digitalRead(KNOB_SW);
 
-    // If we detect LOW signal, button is pressed
-    if (btn_state == LOW)
+    long button_delta = millis() - last_button_press;
+    // if 50ms have passed since last LOW pulse, it means that the
+    // button has been pressed, released and pressed again
+    if (button_delta > 50)
     {
-        long button_delta = millis() - last_button_press;
-        // if 50ms have passed since last LOW pulse, it means that the
-        // button has been pressed, released and pressed again
-        if (button_delta > 50)
+        if (button_delta > 1000)
         {
-            if (button_delta > 1000)
+            fast_button_count = 0;
+            Serial.println("Button pressed!");
+            if (mode == MODE_OFF)
             {
-                fast_button_count = 0;
-                Serial.println("Button pressed!");
-                if (mode == MODE_OFF)
-                {
-                    set_led_mode();
-                }
-                else if (mode == MODE_LED)
-                {
-                    set_brightness_mode();
-                }
-                else if (mode == MODE_BRIGHTNESS)
-                {
-                    set_led_mode();
-                }
+                set_led_mode();
+            }
+            else if (mode == MODE_LED)
+            {
+                set_brightness_mode();
+            }
+            else if (mode == MODE_BRIGHTNESS)
+            {
+                set_led_mode();
+            }
 
-                Serial.print("It is ");
-                if (mode != MODE_OFF)
-                {
-                    Serial.println("on");
-                }
-                else
-                {
-                    Serial.println("off");
-                    led_standby();
-                }
+            Serial.print("It is ");
+            if (mode != MODE_OFF)
+            {
+                Serial.println("on");
             }
             else
             {
-                fast_button_count++;
-                Serial.print("Fast button press: ");
-                Serial.println(fast_button_count);
-                if (fast_button_count >= 3)
-                {
-                    mode = MODE_OFF;
-                    led_standby();
-                    Serial.println("Powering off");
-                    fast_button_count = 0;
-                }
+                Serial.println("off");
+                led_standby();
             }
-            Serial.print("Mode: ");
-            Serial.println(mode);
         }
-
-        // Remember last button press event
-        last_button_press = millis();
+        else
+        {
+            fast_button_count++;
+            Serial.print("Fast button press: ");
+            Serial.println(fast_button_count);
+            if (fast_button_count >= 3)
+            {
+                mode = MODE_OFF;
+                led_standby();
+                Serial.println("Powering off");
+                fast_button_count = 0;
+            }
+        }
+        Serial.print("Mode: ");
+        Serial.println(mode);
     }
+
+    // Remember last button press event
+    last_button_press = millis();
+}
+
+void setup_knob()
+{
+    pinMode(KNOB_PLUS, OUTPUT);
+
+    delay(100);
+
+    digitalWrite(KNOB_PLUS, HIGH);
+    delay(100);
+
+    pinMode(KNOB_SW, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(KNOB_SW), sw, LOW);
 }
 
 void setup()
 {
-    delay(10);
+    delay(3000);
     // Setup Serial Monitor
     Serial.begin(38400);
 
     setup_lights();
     setup_knob();
-    setup_acc();
-
-    attachInterrupt(digitalPinToInterrupt(KNOB_SW), sw, CHANGE);
+    // setup_acc();
 }
 
 void inc_pos()
@@ -343,23 +352,23 @@ void led_painter_g()
 
 void loop_leds()
 {
-    if (led_mode == 0)
+    if (led_mode == LED_MODE_DOUBLE_RAINBOW)
     {
         led_double_rainbow();
     }
-    else if (led_mode == 1)
+    else if (led_mode == LED_MODE_SPARKLE)
     {
         led_sparkle();
     }
-    else if (led_mode == 2)
+    else if (led_mode == LED_MODE_RAINBOW)
     {
         led_rainbow();
     }
-    else if (led_mode == 3)
+    else if (led_mode == LED_MODE_SPARKLE_G)
     {
         led_sparkle_g();
     }
-    else if (led_mode == MAX_LED_MODE)
+    else if (led_mode == LED_MODE_PAINTER_G)
     {
         led_painter_g();
     }
@@ -469,8 +478,8 @@ void loop()
     else
     {
         read_knob();
-        read_g();
+        // read_g();
         loop_leds();
-        delay(5);
+        delay(10);
     }
 }
