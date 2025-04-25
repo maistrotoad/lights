@@ -51,7 +51,7 @@ byte led_pos = 0;
 Encoder my_enc(KNOB_DT, KNOB_CLK);
 
 int32_t enc_led_mode_pos = 0;
-int32_t enc_brightness_pos = 0;
+int32_t enc_brightness_pos = MIN_BRIGHTNESS * 10;
 
 unsigned long last_button_press = 0;
 byte fast_button_count = 3;
@@ -414,16 +414,15 @@ void read_knob()
 {
     int32_t new_pos = my_enc.read();
 
-    if (new_pos < 0)
-    {
-        new_pos = 0;
-    }
-
     if (mode == MODE_BRIGHTNESS)
     {
         if (new_pos > MAX_BGRIGHTNESS * 10)
         {
             new_pos = MAX_BGRIGHTNESS * 10;
+        }
+        else if (new_pos < MIN_BRIGHTNESS * 10)
+        {
+            new_pos = MIN_BRIGHTNESS * 10;
         }
     }
     else if (mode == MODE_LED)
@@ -431,6 +430,10 @@ void read_knob()
         if (new_pos > MAX_LED_MODE * 10)
         {
             new_pos = MAX_LED_MODE * 10;
+        }
+        else if (new_pos < MODE_OFF * 10)
+        {
+            new_pos = MODE_OFF * 10;
         }
     }
 
