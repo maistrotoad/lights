@@ -129,7 +129,7 @@ void sw()
         if (button_delta > 1000)
         {
             fast_button_count = 0;
-            Serial.println("Button pressed!");
+            // Serial.println("Button pressed!");
             if (mode == MODE_OFF)
             {
                 set_led_mode();
@@ -143,32 +143,32 @@ void sw()
                 set_led_mode();
             }
 
-            Serial.print("It is ");
-            if (mode != MODE_OFF)
+            // Serial.print("It is ");
+            if (mode == MODE_OFF)
             {
-                Serial.println("on");
-            }
-            else
-            {
-                Serial.println("off");
+                // Serial.println("off");
                 led_standby();
             }
+            // else
+            // {
+            //     Serial.println("on");
+            // }
         }
         else
         {
             fast_button_count++;
-            Serial.print("Fast button press: ");
-            Serial.println(fast_button_count);
+            // Serial.print("Fast button press: ");
+            // Serial.println(fast_button_count);
             if (fast_button_count >= 3)
             {
                 mode = MODE_OFF;
                 led_standby();
-                Serial.println("Powering off");
+                // Serial.println("Powering off");
                 fast_button_count = 0;
             }
         }
-        Serial.print("Mode: ");
-        Serial.println(mode);
+        // Serial.print("Mode: ");
+        // Serial.println(mode);
     }
 
     // Remember last button press event
@@ -190,9 +190,13 @@ void setup_knob()
 
 void setup()
 {
+    pinMode(LED_BUILTIN, OUTPUT);
+    delay(10);
+    digitalWrite(LED_BUILTIN, HIGH);
     delay(3000);
+    digitalWrite(LED_BUILTIN, LOW);
     // Setup Serial Monitor
-    Serial.begin(38400);
+    // Serial.begin(38400);
 
     setup_lights();
     setup_knob();
@@ -394,13 +398,13 @@ void read_g()
     {
         gd_acc *= 0.9;
 
-        if (gd_acc > 10)
-        {
-            Serial.print("gd: ");
-            Serial.print(gd);
-            Serial.print(" gd_acc: ");
-            Serial.println(gd_acc);
-        }
+        // if (gd_acc > 10)
+        // {
+        //     Serial.print("gd: ");
+        //     Serial.print(gd);
+        //     Serial.print(" gd_acc: ");
+        //     Serial.println(gd_acc);
+        // }
 
         last_g = millis();
     }
@@ -463,10 +467,10 @@ void read_knob()
 
     if (millis() - last_print > 1000)
     {
-        Serial.print("enc_mode_pos: ");
-        Serial.print(enc_led_mode_pos);
-        Serial.print(" enc_brightness_pos: ");
-        Serial.println(enc_brightness_pos);
+        // Serial.print("enc_mode_pos: ");
+        // Serial.print(enc_led_mode_pos);
+        // Serial.print(" enc_brightness_pos: ");
+        // Serial.println(enc_brightness_pos);
 
         last_print = millis();
     }
