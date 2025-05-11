@@ -36,10 +36,9 @@
 
 CRGB leds[NUM_STRIPS][NUM_LEDS];
 
-int32_t mode = MODE_LED;
+int32_t mode = MODE_OFF;
 
 int32_t brightness = 10;
-byte hue = 0;
 int32_t led_mode = LED_MODE_DOUBLE_RAINBOW;
 byte led_pos = 0;
 int abs_led_pos = 0;
@@ -51,6 +50,8 @@ int32_t enc_brightness_pos = MIN_BRIGHTNESS * 10;
 
 unsigned long last_button_press = 0;
 byte fast_button_count = 3;
+
+bool init_led_mode = true;
 
 void led_standby()
 {
@@ -209,7 +210,11 @@ void read_knob()
     }
     else if (mode == MODE_LED)
     {
-        led_mode = round(new_pos / 10);
+        if (round(new_pos / 10) != led_mode)
+        {
+            led_mode = round(new_pos / 10);
+            init_led_mode = true;
+        }
         enc_led_mode_pos = new_pos;
     }
 }
@@ -244,69 +249,90 @@ int slow_hue = 0;
 void inc_strip()
 {
     active_strip++;
-    if (active_strip >= NUM_STRIPS)
-    {
-        active_strip = 0;
-    }
+    active_strip = active_strip % NUM_STRIPS;
 }
 
 void inc_slow_hue()
 {
     slow_hue++;
-    if (slow_hue >= 256 * 4)
-    {
-        slow_hue = 0;
-    }
+    slow_hue = slow_hue % (256 * 4);
 }
 
 void led_pillars()
 {
-    for (byte s = 0; s < NUM_STRIPS; s++)
+    byte hue = slow_hue / 4;
+
+    if (active_strip % 2 == 0)
     {
-        fade_raw(leds[s], NUM_LEDS, 5);
+        hue = (hue + 128) % 256;
     }
 
-    leds[active_strip][led_pos].setHue(slow_hue / 4);
-    inc_strip();
-    leds[active_strip][led_pos].setHue(slow_hue / 4);
-    inc_strip();
-    leds[active_strip][led_pos].setHue(slow_hue / 4);
+    if (init_led_mode)
+    {
+        leds[active_strip][led_pos].setHue(hue);
+        inc_pos();
+        if (led_pos >= NUM_LEDS - 1)
+        {
+            init_led_mode = false;
+        }
+    }
+    else
+    {
+        for (byte s = 0; s < NUM_STRIPS; s++)
+        {
+            fade_raw(leds[s], NUM_LEDS, 50);
+        }
 
+        for (byte l = 0; l < NUM_LEDS; l++)
+        {
+            byte strip = (l - active_strip) % NUM_STRIPS;
+            leds[strip][l].setHue(hue);
+        }
+        delay(100);
+    }
+    inc_strip();
     inc_slow_hue();
-    inc_pos();
 }
 
 void led_double_rainbow()
 {
-    for (byte s = 0; s < NUM_STRIPS; s++)
+    int draw = rand() % 100;
+    if (draw > 70)
     {
-        fade_raw(leds[s], NUM_LEDS, 1);
-    }
-    byte led_pos_rev = NUM_LEDS - led_pos - 1;
-    byte hue_rev = (slow_hue / 4) + 128;
-
-    for (byte s = 0; s < NUM_STRIPS; s++)
-    {
-        if (s % 1 == 0)
+        for (byte s = 0; s < NUM_STRIPS; s++)
         {
-            leds[s][led_pos].setHue(slow_hue / 4);
-            leds[s][led_pos_rev].setHue(hue_rev);
-        }
-        else
-        {
-            leds[s][led_pos_rev].setHue(slow_hue / 4);
-            leds[s][led_pos].setHue(hue_rev);
+            fade_raw(leds[s], NUM_LEDS, 1);
         }
     }
+    byte hue = slow_hue / 4;
+    byte strip = abs_led_pos / NUM_LEDS;
+    byte led = abs_led_pos % NUM_LEDS;
 
+    if (abs_led_pos % 2 == 1)
+    {
+        leds[strip][led].setHue(hue);
+    }
+    else
+    {
+        byte rev_strip = NUM_STRIPS - strip - 1;
+        byte rev_led = (NUM_LEDS - led - 2) % NUM_LEDS;
+        leds[rev_strip][rev_led].setHue(hue);
+    }
+
+    inc_abs_pos();
     inc_slow_hue();
-
-    inc_pos();
-    inc_pos();
 }
 
 void led_sparkle()
 {
+    int draw = rand() % 100;
+    if (draw > 70)
+    {
+        for (byte s = 0; s < NUM_STRIPS; s++)
+        {
+            fade_raw(leds[s], NUM_LEDS, 1);
+        }
+    }
     byte pos = 0;
     byte s = 0;
     if (rand() % 100 > 90)
@@ -315,19 +341,17 @@ void led_sparkle()
         pos = rand() % NUM_LEDS;
         leds[s][pos] = CRGB::White;
     }
-    s = rand() % NUM_STRIPS;
-    pos = rand() % NUM_LEDS;
-    leds[s][pos] = CRGB::Black;
-    s = rand() % NUM_STRIPS;
-    pos = rand() % NUM_LEDS;
-    leds[s][pos] = CRGB::Black;
 }
 
 void led_rainbow()
 {
-    for (byte s = 0; s < NUM_STRIPS; s++)
+    int draw = rand() % 100;
+    if (draw > 50)
     {
-        fade_raw(leds[s], NUM_LEDS, 1);
+        for (byte s = 0; s < NUM_STRIPS; s++)
+        {
+            fade_raw(leds[s], NUM_LEDS, 1);
+        }
     }
     leds[abs_led_pos / NUM_LEDS][abs_led_pos % NUM_LEDS].setHue(slow_hue / 4);
 
