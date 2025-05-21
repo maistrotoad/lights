@@ -5,6 +5,11 @@
 #include <stdint.h>
 // #define ENCODER_OPTIMIZE_INTERRUPTS
 #include <Encoder.h>
+#include <Snooze.h>
+SnoozeDigital digital;
+SnoozeBlock config(digital);
+
+int idx;
 
 #define KNOB_CLK 3
 #define KNOB_DT 2
@@ -149,6 +154,7 @@ void setup_knob()
 
     pinMode(KNOB_SW, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(KNOB_SW), sw, LOW);
+    digital.pinMode(KNOB_SW, INPUT_PULLUP, FALLING);
 }
 
 void setup()
@@ -384,7 +390,8 @@ void loop()
 {
     if (mode == MODE_OFF)
     {
-        delay(1000);
+        int who = Snooze.deepSleep(config);
+        delay(3000);
     }
     else
     {
