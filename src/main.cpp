@@ -30,7 +30,8 @@ int idx;
 #define LED_MODE_DOUBLE_RAINBOW 1
 #define LED_MODE_SPARKLE 2
 #define LED_MODE_RAINBOW 3
-#define MAX_LED_MODE 3
+#define LED_MODE_RAINBOW_SPARKLE 4
+#define MAX_LED_MODE 4
 
 #define MIN_BRIGHTNESS 5
 #define MAX_BGRIGHTNESS 50
@@ -261,12 +262,17 @@ void inc_strip()
 void inc_slow_hue()
 {
     slow_hue++;
-    slow_hue = slow_hue % (256 * 4);
+    slow_hue = slow_hue % (256 * 8);
+}
+
+byte get_slow_hue()
+{
+    return slow_hue / 8;
 }
 
 void led_pillars()
 {
-    byte hue = slow_hue / 4;
+    byte hue = get_slow_hue();
 
     if (active_strip % 2 == 0)
     {
@@ -310,7 +316,7 @@ void led_double_rainbow()
             fade_raw(leds[s], NUM_LEDS, 1);
         }
     }
-    byte hue = slow_hue / 4;
+    byte hue = get_slow_hue();
     byte strip = abs_led_pos / NUM_LEDS;
     byte led = abs_led_pos % NUM_LEDS;
 
@@ -359,10 +365,42 @@ void led_rainbow()
             fade_raw(leds[s], NUM_LEDS, 1);
         }
     }
-    leds[abs_led_pos / NUM_LEDS][abs_led_pos % NUM_LEDS].setHue(slow_hue / 4);
+    byte hue = get_slow_hue();
+    leds[abs_led_pos / NUM_LEDS][abs_led_pos % NUM_LEDS].setHue(hue);
 
     inc_slow_hue();
     inc_abs_pos();
+}
+
+void led_rainbow_sparkle()
+{
+    int draw = rand() % 100;
+    if (draw > 70)
+    {
+        for (byte s = 0; s < NUM_STRIPS; s++)
+        {
+            fade_raw(leds[s], NUM_LEDS, 1);
+        }
+    }
+    byte pos = 0;
+    byte s = 0;
+    byte hue = rand() % 256;
+    if (draw > 90)
+    {
+        s = rand() % NUM_STRIPS;
+        pos = rand() % NUM_LEDS;
+        leds[s][pos].setHue(hue);
+    }
+    else if (draw > 97)
+    {
+        for (byte i = 0; i < 20; i++)
+        {
+            hue = (hue + (rand() % 10)) % 256;
+            s = rand() % NUM_STRIPS;
+            pos = rand() % NUM_LEDS;
+            leds[s][pos].setHue(hue);
+        }
+    }
 }
 
 void loop_leds()
@@ -382,6 +420,10 @@ void loop_leds()
     else if (led_mode == LED_MODE_RAINBOW)
     {
         led_rainbow();
+    }
+    else if (led_mode == LED_MODE_RAINBOW_SPARKLE)
+    {
+        led_rainbow_sparkle();
     }
     FastLED.show();
 }
