@@ -26,11 +26,11 @@ int idx;
 
 #define COLOR_ORDER BRG
 
-#define LED_MODE_PILLARS 0
+#define LED_MODE_RAINBOW_SPARKLE 0
 #define LED_MODE_DOUBLE_RAINBOW 1
 #define LED_MODE_SPARKLE 2
 #define LED_MODE_RAINBOW 3
-#define LED_MODE_RAINBOW_SPARKLE 4
+#define LED_MODE_PILLARS 4
 #define MAX_LED_MODE 4
 
 #define MIN_BRIGHTNESS 5
@@ -300,7 +300,7 @@ void led_pillars()
             byte strip = (l - active_strip) % NUM_STRIPS;
             leds[strip][l].setHue(hue);
         }
-        delay(100);
+        delay(150);
     }
     inc_strip();
     inc_slow_hue();
@@ -439,6 +439,6 @@ void loop()
     {
         read_knob();
         loop_leds();
-        delay(5);
+        delay(3);
     }
 }
