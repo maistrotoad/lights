@@ -5,11 +5,6 @@
 #include <stdint.h>
 // #define ENCODER_OPTIMIZE_INTERRUPTS
 #include <Encoder.h>
-#include <Snooze.h>
-SnoozeDigital digital;
-SnoozeBlock config(digital);
-
-int idx;
 
 #define KNOB_CLK 3
 #define KNOB_DT 2
@@ -26,12 +21,13 @@ int idx;
 
 #define COLOR_ORDER BRG
 
-#define LED_MODE_RAINBOW_SPARKLE 0
-#define LED_MODE_DOUBLE_RAINBOW 1
-#define LED_MODE_SPARKLE 2
-#define LED_MODE_RAINBOW 3
-#define LED_MODE_PILLARS 4
-#define MAX_LED_MODE 4
+#define LED_MODE_LANTERN 0
+#define LED_MODE_RAINBOW_SPARKLE 1
+#define LED_MODE_DOUBLE_RAINBOW 2
+#define LED_MODE_SPARKLE 3
+#define LED_MODE_RAINBOW 4
+#define LED_MODE_PILLARS 5
+#define MAX_LED_MODE 5
 
 #define MIN_BRIGHTNESS 5
 #define MAX_BGRIGHTNESS 50
@@ -61,7 +57,7 @@ bool init_led_mode = true;
 
 void led_standby()
 {
-    FastLED.setBrightness(MIN_BRIGHTNESS);
+    FastLED.setBrightness(1);
 
     for (byte s = 0; s < NUM_STRIPS; s++)
     {
@@ -155,7 +151,6 @@ void setup_knob()
 
     pinMode(KNOB_SW, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(KNOB_SW), sw, LOW);
-    digital.pinMode(KNOB_SW, INPUT_PULLUP, FALLING);
 }
 
 void setup()
@@ -219,7 +214,20 @@ void read_knob()
     {
         if (round(new_pos / 10) != led_mode)
         {
+            if (led_mode == MODE_OFF || led_mode == LED_MODE_LANTERN)
+            {
+                FastLED.setBrightness(MIN_BRIGHTNESS);
+            }
             led_mode = round(new_pos / 10);
+
+            if (led_mode == LED_MODE_LANTERN)
+            {
+                FastLED.setBrightness(200);
+            }
+            else if (led_mode == LED_MODE_RAINBOW_SPARKLE)
+            {
+                FastLED.setBrightness(20);
+            }
             init_led_mode = true;
         }
         enc_led_mode_pos = new_pos;
@@ -270,6 +278,24 @@ byte get_slow_hue()
     return slow_hue / 8;
 }
 
+void led_lantern()
+{
+    for (byte s = 0; s < NUM_STRIPS; s++)
+    {
+        for (byte l = 0; l < NUM_LEDS; l++)
+        {
+            if (l > NUM_LEDS - 10)
+            {
+                leds[s][l] = CRGB::White;
+            }
+            else
+            {
+                leds[s][l] = CRGB::Black;
+            }
+        }
+    }
+}
+
 void led_pillars()
 {
     byte hue = get_slow_hue();
@@ -292,7 +318,7 @@ void led_pillars()
     {
         for (byte s = 0; s < NUM_STRIPS; s++)
         {
-            fade_raw(leds[s], NUM_LEDS, 50);
+            fade_raw(leds[s], NUM_LEDS, 100);
         }
 
         for (byte l = 0; l < NUM_LEDS; l++)
@@ -372,40 +398,63 @@ void led_rainbow()
     inc_abs_pos();
 }
 
+void set_rand()
+{
+    byte pos = rand() % NUM_LEDS;
+    byte value = (pos + 100);
+    byte s = rand() % NUM_STRIPS;
+    byte hue = rand() % 256;
+
+    leds[s][pos] = CHSV(hue, 255, value);
+}
+
 void led_rainbow_sparkle()
 {
-    int draw = rand() % 100;
-    if (draw > 70)
+    int draw = rand() % 200;
+    if (draw > 120)
     {
         for (byte s = 0; s < NUM_STRIPS; s++)
         {
             fade_raw(leds[s], NUM_LEDS, 1);
         }
     }
-    byte pos = 0;
-    byte s = 0;
-    byte hue = rand() % 256;
-    if (draw > 90)
+    if (draw > 170)
     {
-        s = rand() % NUM_STRIPS;
-        pos = rand() % NUM_LEDS;
-        leds[s][pos].setHue(hue);
+        set_rand();
     }
-    else if (draw > 97)
+    else if (draw > 190)
     {
-        for (byte i = 0; i < 20; i++)
+        for (byte i = 0; i < 10; i++)
         {
-            hue = (hue + (rand() % 10)) % 256;
-            s = rand() % NUM_STRIPS;
-            pos = rand() % NUM_LEDS;
-            leds[s][pos].setHue(hue);
+            set_rand();
+        }
+
+        draw = rand() % 200;
+
+        if (draw > 180)
+        {
+            for (byte i = 0; i < 100; i++)
+            {
+                set_rand();
+            }
+        }
+        else if (draw > 100)
+        {
+            for (byte i = 0; i < 20; i++)
+            {
+                set_rand();
+            }
         }
     }
 }
 
 void loop_leds()
 {
-    if (led_mode == LED_MODE_PILLARS)
+    if (led_mode == LED_MODE_LANTERN)
+    {
+        led_lantern();
+    }
+    else if (led_mode == LED_MODE_PILLARS)
     {
         led_pillars();
     }
@@ -432,7 +481,6 @@ void loop()
 {
     if (mode == MODE_OFF)
     {
-        int who = Snooze.deepSleep(config);
         delay(3000);
     }
     else
