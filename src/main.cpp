@@ -418,11 +418,7 @@ void led_rainbow_sparkle()
             fade_raw(leds[s], NUM_LEDS, 1);
         }
     }
-    if (draw > 170)
-    {
-        set_rand();
-    }
-    else if (draw > 190)
+    if (draw > 190)
     {
         for (byte i = 0; i < 10; i++)
         {
@@ -445,6 +441,10 @@ void led_rainbow_sparkle()
                 set_rand();
             }
         }
+    }
+    else if (draw > 170)
+    {
+        set_rand();
     }
 }
 
