@@ -30,7 +30,7 @@
 #define MAX_LED_MODE 5
 
 #define MIN_BRIGHTNESS 5
-#define MAX_BGRIGHTNESS 50
+#define MAX_BRIGHTNESS 50
 
 #define MODE_OFF 0
 #define MODE_LED 1
@@ -61,7 +61,7 @@ void led_standby()
 
     for (byte s = 0; s < NUM_STRIPS; s++)
     {
-        leds[s][0] = CHSV(0, 255, 255);
+        leds[s][0] = CRGB::Red;
         for (byte i = 1; i < NUM_LEDS; i++)
         {
             leds[s][i] = CRGB::Black;
@@ -108,6 +108,19 @@ void sw()
             fast_button_count = 0;
             if (mode == MODE_OFF)
             {
+                if (led_mode == LED_MODE_LANTERN)
+                {
+                    FastLED.setBrightness(200);
+                }
+                else if (led_mode == LED_MODE_RAINBOW_SPARKLE)
+                {
+                    FastLED.setBrightness(20);
+                }
+                else
+                {
+                    FastLED.setBrightness(MIN_BRIGHTNESS);
+                }
+
                 set_led_mode();
             }
             else if (mode == MODE_LED)
@@ -118,11 +131,6 @@ void sw()
             {
                 set_led_mode();
             }
-
-            if (mode == MODE_OFF)
-            {
-                led_standby();
-            }
         }
         else
         {
@@ -130,7 +138,6 @@ void sw()
             if (fast_button_count >= 3)
             {
                 mode = MODE_OFF;
-                led_standby();
                 fast_button_count = 0;
             }
         }
@@ -171,9 +178,9 @@ void read_knob()
 
     if (mode == MODE_BRIGHTNESS)
     {
-        if (new_pos > MAX_BGRIGHTNESS * 10)
+        if (new_pos > MAX_BRIGHTNESS * 10)
         {
-            new_pos = MAX_BGRIGHTNESS * 10;
+            new_pos = MAX_BRIGHTNESS * 10;
         }
         else if (new_pos < MIN_BRIGHTNESS * 10)
         {
@@ -214,7 +221,7 @@ void read_knob()
     {
         if (round(new_pos / 10) != led_mode)
         {
-            if (led_mode == MODE_OFF || led_mode == LED_MODE_LANTERN)
+            if (led_mode == LED_MODE_LANTERN)
             {
                 FastLED.setBrightness(MIN_BRIGHTNESS);
             }
@@ -256,7 +263,6 @@ byte red = 0;
 byte yellow = 64;
 byte green = 96;
 byte blue = 160;
-byte pilars[NUM_STRIPS] = {red, yellow, green, blue};
 
 byte active_strip = 0;
 int slow_hue = 0;
@@ -326,7 +332,7 @@ void led_pillars()
             byte strip = (l - active_strip) % NUM_STRIPS;
             leds[strip][l].setHue(hue);
         }
-        delay(150);
+        delay(100);
     }
     inc_strip();
     inc_slow_hue();
@@ -401,7 +407,11 @@ void led_rainbow()
 void set_rand()
 {
     byte pos = rand() % NUM_LEDS;
-    byte value = (pos + 100);
+    byte value = (pos + 50);
+    if (pos > 110)
+    {
+        value = 255;
+    }
     byte s = rand() % NUM_STRIPS;
     byte hue = rand() % 256;
 
@@ -481,12 +491,13 @@ void loop()
 {
     if (mode == MODE_OFF)
     {
+        led_standby();
         delay(3000);
     }
     else
     {
         read_knob();
         loop_leds();
-        delay(3);
+        delay(2);
     }
 }
